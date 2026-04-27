@@ -1,0 +1,15 @@
+{
+  "_comment": "Add this 'hooks' block to your existing ~/.claude/settings.json. Don't overwrite the whole file — merge into it.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/prompt-checker.py"
+          }
+        ]
+      }
+    ]
+  }
+}
