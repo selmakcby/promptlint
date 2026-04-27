@@ -22,8 +22,11 @@ import sys
 from pathlib import Path
 
 # ─── thresholds ──────────────────────────────────────────────────────────────
+# Strict mode (default when :lint on): >= 7 pass silently, < 7 block hard.
+# No medium tier — demo is cleaner: every flagged prompt is a visible BLOCK.
+# To re-enable medium tier (warning + coach note), set BLOCK_THRESHOLD = 4.
 PASS_THRESHOLD  = 7
-BLOCK_THRESHOLD = 4
+BLOCK_THRESHOLD = 7
 
 # State file presence = ENABLED. Absence = DISABLED (default).
 # Inverted from v2 — was "disabled" file, now "enabled" file.
