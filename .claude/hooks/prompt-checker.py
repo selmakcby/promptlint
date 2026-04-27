@@ -160,7 +160,14 @@ def main() -> int:
         return 0  # silent pass
 
     if score >= BLOCK_THRESHOLD:
-        # Pass through, but inject a coach note as additional context for Claude
+        # Visible warning to user (stderr)
+        short = "; ".join(issues[:2])
+        print(
+            f"🟡 PROMPTLINT — Skor: {score}/10  ·  Claude netleştirici sorular soracak\n"
+            f"   ↳ {short}",
+            file=sys.stderr,
+        )
+        # Coach note for Claude (stdout — gets injected as context)
         print(coach_note(score, issues))
         return 0
 
