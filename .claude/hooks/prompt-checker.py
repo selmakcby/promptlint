@@ -30,9 +30,9 @@ VAGUE_VERBS = [
     r"\bgüzel(leştir)?\b", r"\bdaha iyi\b", r"\bdüzenle\b",
     r"\bkodumu\b", r"\bher şey(i)?\b", r"\bhepsi(ni)?\b",
     r"\bşöyle bi\w*\b", r"\bbir şey(ler)?\b", r"\bbirşey(ler)?\b",
-    r"\byapsa(na)?\b", r"\bhalleder?\s*mi\w*\b", r"\bhalledebilir mi\w*\b",
+    r"\bhalleder?\s*mi\w*\b", r"\bhalledebilir mi\w*\b",
     r"\bne yapsam\b", r"\byardım(\s+eder)?(\s+mi\w*)?\b",
-    r"\bşunu bir bak\b", r"\bşunu\b(?!\s+\w+\.\w)",  # şunu without a file ref
+    r"\bşunu bir bak\b",
     r"\bbişey\w*\b", r"\bbi şey\w*\b",
     r"\bgüzel ol(sun|maz)\b", r"\bçirkin\b",
     r"\bçözer mi\w*\b", r"\bbakar mı\w*\b",
@@ -40,6 +40,17 @@ VAGUE_VERBS = [
     r"\bfix\b", r"\bclean(\s*up)?\b", r"\bimprove\b", r"\bmake\s+(it\s+)?better\b",
     r"\bnicer\b", r"\brefactor\s+everything\b", r"\bmy code\b",
     r"\bsomething\b", r"\bhelp me\b",
+]
+
+# Pure command-only prompts with no info — heavy penalty
+ULTRA_LAZY = [
+    r"^\s*yap(\s*art[iı]?k)?\s*[!.?]*\s*$",  # "yap", "yap artık", "yap artik"
+    r"^\s*yapsana\s*[!.?]*\s*$",
+    r"^\s*hadi(\s+yap)?\s*[!.?]*\s*$",
+    r"^\s*olsun\s*[!.?]*\s*$",
+    r"^\s*yine de\s+yap\s*[!.?]*\s*$",
+    r"^\s*do it\s*[!.?]*\s*$",
+    r"^\s*just do it\s*[!.?]*\s*$",
 ]
 
 REFERENCE_PATTERNS = [
@@ -70,33 +81,43 @@ def analyze(prompt: str) -> tuple[int, list[str]]:
     score = 10
     issues: list[str] = []
 
-    # Length
-    L = len(p)
-    if L < 15:
-        score -= 5
-        issues.append("Çok kısa — bağlam eksik (en az bir cümle yaz)")
-    elif L < 40:
-        score -= 2
-        issues.append("Kısa — daha çok detay verebilirsin")
+    char_count = len(p)
+    word_count = len(p.split())
 
-    # Vague verbs
+    # Length / word count — STEEP penalty for ultra-short
+    if char_count < 8 or word_count == 1:
+        score -= 7
+        issues.append("Çok kısa — tek kelime/komut, bağlam yok")
+    elif char_count < 15 or word_count == 2:
+        score -= 5
+        issues.append("Çok kısa — daha çok detay verebilirsin")
+    elif char_count < 40:
+        score -= 2
+        issues.append("Yetersiz — bağlam genişletilebilir")
+
+    # Ultra-lazy command patterns ("yap", "yap artık", "yapsana", "hadi"...)
+    if any(re.search(pat, p_lower) for pat in ULTRA_LAZY):
+        score -= 5
+        issues.append("Sadece komut — bağlam yok ('yap'/'yapsana'/'hadi' tek başına)")
+
+    # Vague verbs (general)
     if any(re.search(pat, p_lower) for pat in VAGUE_VERBS):
         score -= 3
         issues.append("Belirsiz fiil — hangi dosya? hangi pattern? hangi standart?")
 
     # Specific reference (file / function / line)
     has_ref = any(re.search(pat, p, re.IGNORECASE) for pat in REFERENCE_PATTERNS)
-    if not has_ref and L > 15:
+    if not has_ref and char_count > 15:
         score -= 2
         issues.append("Spesifik referans yok — dosya, fonksiyon, satır numarası ekle")
 
     # Scope / exclusion
-    if not any(k in p_lower for k in SCOPE_KEYWORDS) and score < 9 and L > 20:
+    if not any(k in p_lower for k in SCOPE_KEYWORDS) and score < 9 and char_count > 20:
         score -= 1
         issues.append("Kapsam belirsiz — neye DOKUNMASIN, neye SADECE odaklansın?")
 
     # Output format
-    if not any(k in p_lower for k in FORMAT_KEYWORDS) and L > 30:
+    if not any(k in p_lower for k in FORMAT_KEYWORDS) and char_count > 30:
         score -= 1
         issues.append("Format yok — uzunluk/yapı belirt (kaç cümle, tablo, liste)")
 
