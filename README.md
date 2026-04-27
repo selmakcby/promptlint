@@ -4,8 +4,9 @@
 
 <p align="center">
   <code>real-time prompt scoring</code> ·
-  <code>token counter dahil</code> ·
-  <code>Claude Code hook</code> ·
+  <code>auto token pop-up</code> ·
+  <code>chat içi toggle</code> ·
+  <code>Haiku LLM-judge (opt-in)</code> ·
   <code>Türkçe</code>
 </p>
 
@@ -13,25 +14,33 @@
 
 # promptlint
 
-> **Claude Code için real-time prompt kalite kontrolü.** Kötü prompt yazınca uyarır, iyi promptu sessizce geçirir, token sayacıyla maliyetini kanıtlar.
+> **Claude Code için real-time prompt kalite kontrolü.** Kötü prompt yazınca uyarır, iyi promptu sessizce geçirir, her cevaptan sonra token maliyetini ekrana basar, chat içinden açıp kapatabilirsin.
 
 ---
 
-## Ne yapar
+## v2 ne getirdi
 
-Sen Claude Code'da promptu yazıp ENTER'a basınca, `promptlint` araya girer:
+| Özellik | Ne yapar |
+|---------|----------|
+| **Hibrit grader** | Önce hızlı regex kuralları, sonra (opsiyonel) Haiku LLM-judge — `ANTHROPIC_API_KEY` varsa otomatik aktif, yoksa rules fallback |
+| **Otomatik token pop-up** | Stop hook her Claude cevabından sonra ekrana token kutusu çizer (son turn + oturum + maliyet) |
+| **Chat içi toggle** | `:lint off` / `:lint on` yazarak filtreyi anında aç/kapat — yeniden başlatma yok |
+| **5 boyutlu rubric** | spesifiklik, aksiyon, sınır, format, bağlam — ValidMind Clarity standardı |
 
+---
+
+## Ne görürsün
+
+### Kötü prompt → BLOK (skor 0-3)
 ```
-SEN: kodumu temizle
-↓
-[promptlint hook] analiz...
-↓
-🚨 PROMPTLINT — Skor: 2/10
+> kodumu temizle
+
+🚨 PROMPTLINT — Skor: 2/10  (📐 RULES)
 
 Sorunlar:
-  • Belirsiz fiil — hangi dosya, hangi pattern, hangi standart?
-  • Spesifik referans yok — dosya, fonksiyon, satır numarası ekle
-  • Kapsam belirsiz — neye DOKUNMASIN?
+  • Çok kısa — daha çok detay verebilirsin
+  • Belirsiz fiil — hangi dosya? hangi pattern?
+  • Spesifik referans yok — dosya, fonksiyon ekle
 
 Önerilen format:
   → DOSYA / KAPSAM   (src/auth/login.ts:42-78)
@@ -39,18 +48,52 @@ Sorunlar:
   → SINIRLAR         (test dosyalarına dokunma)
   → ÇIKTI            (sadece değişen satırları göster)
 
-Promptu yeniden yaz, devam edeceğim.
+İpucu: filtreyi kapatmak istersen :lint off yaz
 ```
 
-Skor sistemine göre 3 davranış:
+### Orta prompt → COACH NOTE (skor 4-6)
+```
+> react useEffect ekle
+
+🟡 PROMPTLINT — Skor: 4/10  (🤖 LLM)  ·  Claude netleştirici sorular soracak
+   ↳ Spesifik referans yok; Format yok
+
+[Claude bu turn doğrudan kod yazmaz, önce 3-4 soru sorar]
+```
+
+### İyi prompt → SESSİZ GEÇER (skor 7-10)
+```
+> src/auth/login.ts'deki validatePassword'ı zod ile refactor et. Test'lere dokunma.
+
+[Hiçbir uyarı yok, Claude direkt işe girişir]
+```
+
+### Her cevaptan sonra → TOKEN POP-UP
+```
+┌─ 📊 PROMPTLINT · TOKEN ───────────────────────────────────────┐
+│ son turn  · in     29  out  1.2k  cw   45k  cr  120k  $ 0.0234
+│ oturum    · top  166k  (opus)                       $ 3.4804
+└───────────────────────────────────────────────────────────────┘
+```
+
+### Chat içi kontrol
+```
+> :lint off
+🔕 promptlint kapatıldı. Tekrar açmak için: :lint on
+
+> :lint on
+🔔 promptlint açıldı. Kapatmak için: :lint off
+```
+
+---
+
+## Skor sistemi
 
 | Skor | Davranış |
 |------|----------|
 | 7-10 | Silent pass — promptlint sessizdir |
-| 4-6  | Pass + Claude'a coach notu (sana sormadan netleştirir) |
+| 4-6  | Pass + visible warning + Claude'a coach note |
 | 0-3  | BLOK — kullanıcıya geri döner, yeniden yazdırır |
-
-Yanında **token-counter** geliyor: her mesajın canlı maliyetini ekrana basar. Promptun iyi mi kötü mü olduğunu **sayılarla kanıtlar**.
 
 ---
 
@@ -63,12 +106,13 @@ cd promptlint
 ```
 
 `install.sh`:
-1. Hook'u `~/.claude/hooks/` altına kopyalar
-2. Skill'i `~/.claude/skills/prompt-coach/` altına kopyalar
-3. Token counter'ı `~/bin/` altına kopyalar
-4. Sana `~/.claude/settings.json`'a eklemen gereken JSON'u verir
+1. `prompt-checker.py` ve `token-reporter.py` hooklarını `~/.claude/hooks/` altına kopyalar
+2. `prompt-coach` skill'ini `~/.claude/skills/` altına kopyalar
+3. `token-counter.py` standalone CLI'yı `~/bin/` altına kopyalar
+4. `anthropic` SDK var mı kontrol eder (yoksa rules fallback)
+5. Sana `~/.claude/settings.json`'a eklenecek JSON'u verir
 
-**Manuel adım** — `~/.claude/settings.json`'a ekle (root level'a `hooks` anahtarı altına):
+**Manuel adım** — `~/.claude/settings.json`'a iki hook ekle (root level `hooks` objesi içine):
 
 ```json
 {
@@ -82,6 +126,16 @@ cd promptlint
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/token-reporter.py"
+          }
+        ]
+      }
     ]
   }
 }
@@ -89,64 +143,71 @@ cd promptlint
 
 ---
 
-## Test
+## v2 LLM-judge (opt-in)
+
+Daha akıllı puanlama için Haiku 4.5 ile değerlendirme:
 
 ```bash
-claude
-> kodumu temizle
+pip install anthropic
+export ANTHROPIC_API_KEY=sk-ant-...
 ```
 
-Hook devreye girer, skor verir, blok atar. Skor düşükse Claude komutunu çalıştırmaz, sana geri döner.
+Hook otomatik tespit eder. Yoksa regex fallback'e düşer (yine çalışır).
 
-İyi prompt için:
+**Maliyet:** ~$0.0001/prompt. Ayda 1000 prompt için ~$0.10.
+
+**Devre dışı bırakma:**
 ```bash
-claude
-> src/auth/login.ts dosyasındaki validatePassword fonksiyonunu zod ile refactor et. Test dosyalarına dokunma.
+export PROMPTLINT_LLM=0   # rules-only zorla
 ```
-
-Hook sessizce geçirir, Claude normal şekilde çalışır.
 
 ---
 
-## Token counter
+## Standalone token counter
+
+Chat'in dışında, ayrı terminal'de canlı dashboard:
 
 ```bash
 python3 ~/bin/token-counter.py            # mevcut session'ı izle
-python3 ~/bin/token-counter.py --new      # sadece script sonrası başlayan session'ı izle (video için)
+python3 ~/bin/token-counter.py --new      # sadece bu komuttan sonra başlayan session (video için)
+python3 ~/bin/token-counter.py --session <path>  # belirli JSONL dosyası
 ```
 
-Canlı dashboard:
-- Context window dolulu (% kaç)
+Gösterir:
+- Context window doluluk (% kaç)
 - Session toplamları (input / output / cache write / cache read)
 - Tahmini maliyet (Opus / Sonnet / Haiku auto-detect)
-- Live spinner — son cevaba göre güncelleme
+- Live spinner + ● LIVE indikatörü
 
 ---
 
 ## Özelleştirme
 
-`prompt-checker.py` dosyasının üst kısmında:
+`~/.claude/hooks/prompt-checker.py` üst kısmında:
 
 ```python
 PASS_THRESHOLD  = 7   # >= → silent pass
 BLOCK_THRESHOLD = 4   # <  → block
 
-VAGUE_VERBS    = [...]   # belirsiz fiil listesi
+VAGUE_VERBS    = [...]   # belirsiz fiil regex listesi
+ULTRA_LAZY     = [...]   # tek kelime komutlar
 REFERENCE_PATTERNS = [...] # dosya/fonksiyon regex'leri
-SCOPE_KEYWORDS = [...]   # "dokunma", "sadece", vb.
-FORMAT_KEYWORDS = [...]  # "tablo", "liste", vb.
+SCOPE_KEYWORDS = [...]   # "dokunma", "sadece"
+FORMAT_KEYWORDS = [...]  # "tablo", "liste"
 ```
 
 Kuralları kendi diline / projene göre düzenleyebilirsin.
 
 ---
 
-## Skor formülü
+## Skor formülü (rules mode)
 
 | Boyut | Etki |
 |-------|------|
-| Uzunluk < 15 char | -5 |
-| Uzunluk 15-40 char | -2 |
+| char_count < 8 OR word_count == 1 | -7 |
+| char_count < 15 OR word_count == 2 | -5 |
+| char_count < 40 | -2 |
+| Ultra-lazy ("yap", "yapsana", "hadi") | -5 |
 | Belirsiz fiil var | -3 |
 | Spesifik referans yok | -2 |
 | Kapsam (dokunma/sadece) yok | -1 |
@@ -160,30 +221,32 @@ Başlangıç skoru: 10. Conversation continuation kelimeleri (`evet`, `tamam`, `
 
 ```
 promptlint/
-├── install.sh                              # tek komut kurar
-├── README.md                               # bu dosya
+├── install.sh
+├── README.md
 ├── LICENSE                                 # MIT
 ├── .claude/
-│   ├── settings.example.json               # hook config
+│   ├── settings.example.json
 │   ├── hooks/
-│   │   └── prompt-checker.py               # ANA BEYİN
+│   │   ├── prompt-checker.py               # ANA BEYİN — UserPromptSubmit
+│   │   └── token-reporter.py               # OTOMATİK POP-UP — Stop
 │   └── skills/
 │       └── prompt-coach/
-│           └── SKILL.md                    # Claude bunu okur
+│           └── SKILL.md
 ├── tools/
-│   └── token-counter.py                    # canlı sayaç
+│   └── token-counter.py                    # standalone CLI
+├── assets/
+│   └── cover.svg                           # README kapağı
 └── examples/
-    ├── 01-developer-prompts.md             # kötü/iyi pairs
-    ├── 02-daily-prompts.md                 # günlük örnekler
-    └── 03-formula.md                       # formül & template
+    ├── 01-developer-prompts.md
+    ├── 02-daily-prompts.md
+    └── 03-formula.md
 ```
 
 ---
 
 ## Felsefe
 
-Prompt yazmak bir **beceri**. Diğer beceriler gibi geri-bildirimle gelişir.
-`promptlint` sana **anlık** geri-bildirim verir; her prompttan öğrenirsin.
+Prompt yazmak bir **beceri**. Diğer beceriler gibi geri-bildirimle gelişir. `promptlint` sana **anlık** geri-bildirim verir; her prompttan öğrenirsin.
 
 Token counter ise iddiayı kanıta çevirir:
 > "İyi prompt yaz" → boş laf

@@ -1,5 +1,5 @@
 {
-  "_comment": "Add this 'hooks' block to your existing ~/.claude/settings.json. Don't overwrite the whole file — merge into it.",
+  "_comment": "Add the hooks below to your existing ~/.claude/settings.json. Don't overwrite — merge the UserPromptSubmit and Stop arrays into your existing 'hooks' object.",
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -7,6 +7,16 @@
           {
             "type": "command",
             "command": "python3 ~/.claude/hooks/prompt-checker.py"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ~/.claude/hooks/token-reporter.py"
           }
         ]
       }
