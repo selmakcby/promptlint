@@ -1,5 +1,6 @@
 {
-  "_comment": "Add the hooks below to your existing ~/.claude/settings.json. Don't overwrite — merge the UserPromptSubmit and Stop arrays into your existing 'hooks' object.",
+  "_comment": "promptlint v3 — DEFAULT OFF / silent. Hook is installed but does nothing until you type ':lint on'. Token reporter is separate and stays on by default. To disable token reporter: ':lint tokens off' (creates ~/.claude/promptlint.tokens.disabled).",
+  "_safety_note": "v2 had a 'type: prompt' Haiku LLM hook that could BLOCK prompts including meta-questions. That hook is REMOVED. v3 is rules-only by default. If you want LLM-judge, set ANTHROPIC_API_KEY and the Python hook will use it as a smart enhancement (still respects the on/off state).",
   "hooks": {
     "UserPromptSubmit": [
       {

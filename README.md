@@ -14,7 +14,11 @@
 
 # promptlint
 
-> **Claude Code için real-time prompt kalite kontrolü.** Kötü prompt yazınca uyarır, iyi promptu sessizce geçirir, her cevaptan sonra token maliyetini ekrana basar, chat içinden açıp kapatabilirsin.
+> **Claude Code için real-time prompt kalite kontrolü.** Default-off — kurulur ama hiçbir şey yapmaz. `:lint on` ile açarsın, demolaman bittikten sonra `:lint off` ile kapatırsın. Hayatına engel olmaz.
+
+## ⚠️ v3 (default-off) → güvenli kurulum
+
+Önceki v2'de kurulum yapan herkes filter sürekli açıktı, "ne yapsam" gibi meta-soruları bile bloke ediyordu. **v3'te bu düzeltildi**: kurulum sonrası filter **kapalı** durur, sen `:lint on` yazınca açılır. Token pop-up ayrı bir mekanizma — o açık kalır, faydalı.
 
 ---
 
@@ -76,14 +80,19 @@ Sorunlar:
 └───────────────────────────────────────────────────────────────┘
 ```
 
-### Chat içi kontrol
+### Chat içi kontrol — `:lint on/off/status`
 ```
-> :lint off
-🔕 promptlint kapatıldı. Tekrar açmak için: :lint on
-
 > :lint on
-🔔 promptlint açıldı. Kapatmak için: :lint off
+🔔 promptlint AÇILDI. Kapatmak için: :lint off
+
+> :lint off
+🔕 promptlint kapatıldı (sessiz mod). Açmak için: :lint on
+
+> :lint status
+ℹ️  promptlint durumu: kapalı (varsayılan)
 ```
+
+**Default davranış: KAPALI.** Kurulum yaptıktan sonra hook çalışır ama hiçbir prompt'u bloke etmez. Demo etmek için `:lint on`, sonra `:lint off`.
 
 ---
 

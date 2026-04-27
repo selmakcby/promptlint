@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """promptlint — UserPromptSubmit hook for Claude Code.
 
-Hybrid prompt grader:
-  Stage 1: cheap rules (continuation, ultra-short, ultra-lazy)  → instant decisions
-  Stage 2: Haiku LLM-judge (if anthropic SDK + API key)         → smart grading
-  Stage 3: regex fallback                                       → if LLM unavailable
+DEFAULT BEHAVIOR: OFF / silent. The hook is installed but does nothing
+unless the user explicitly enables it. This prevents the hook from ever
+blocking your normal work without your consent.
 
 Toggle commands (typed as a prompt):
-  :lint off   →  disables hook (state file: ~/.claude/promptlint.disabled)
-  :lint on    →  re-enables hook
+  :lint on      →  enable analysis
+  :lint off     →  disable (back to silent default)
+  :lint status  →  show current state
 
-Customize thresholds and rules below.
+When enabled:
+  Stage 1: cheap rules (continuation, ultra-short, ultra-lazy) → instant decisions
+  Stage 2: Haiku LLM-judge (if ANTHROPIC_API_KEY set)          → smart grading
+  Stage 3: regex fallback                                       → if LLM unavailable
 """
 import json
 import os
@@ -22,7 +25,9 @@ from pathlib import Path
 PASS_THRESHOLD  = 7
 BLOCK_THRESHOLD = 4
 
-STATE_FILE = Path.home() / ".claude" / "promptlint.disabled"
+# State file presence = ENABLED. Absence = DISABLED (default).
+# Inverted from v2 — was "disabled" file, now "enabled" file.
+STATE_FILE = Path.home() / ".claude" / "promptlint.enabled"
 
 # Skip continuation prompts
 CONTINUATIONS = {
@@ -30,9 +35,10 @@ CONTINUATIONS = {
     "go", "no", "n", "hayır", "hayir", "dur", "stop", "iptal", "cancel",
 }
 
-# Toggle commands
-TOGGLE_OFF = {":lint off", ":lint kapat", "/lint off", "/promptlint off"}
-TOGGLE_ON  = {":lint on", ":lint ac", ":lint aç", "/lint on", "/promptlint on"}
+# Toggle commands — ALWAYS work, regardless of current state
+TOGGLE_OFF    = {":lint off", ":lint kapat", "/lint off", "/promptlint off"}
+TOGGLE_ON     = {":lint on", ":lint ac", ":lint aç", "/lint on", "/promptlint on"}
+TOGGLE_STATUS = {":lint status", ":lint durum", "/lint status"}
 
 # ─── rules ───────────────────────────────────────────────────────────────────
 VAGUE_VERBS = [
@@ -234,19 +240,24 @@ def main() -> int:
 
     p_lower = prompt.lower()
 
-    # Toggle commands — handled FIRST, before any other logic
+    # Toggle commands — ALWAYS work, before any other logic, even when disabled
     if p_lower in TOGGLE_OFF:
+        STATE_FILE.unlink(missing_ok=True)
+        print("🔕 promptlint kapatıldı (sessiz mod). Açmak için: :lint on", file=sys.stderr)
+        return 2  # block this meta-prompt from going to Claude
+    if p_lower in TOGGLE_ON:
         STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
         STATE_FILE.touch()
-        print("🔕 promptlint kapatıldı. Tekrar açmak için: :lint on", file=sys.stderr)
-        return 2  # block (don't send to Claude)
-    if p_lower in TOGGLE_ON:
-        STATE_FILE.unlink(missing_ok=True)
-        print("🔔 promptlint açıldı. Kapatmak için: :lint off", file=sys.stderr)
+        print("🔔 promptlint AÇILDI. Kapatmak için: :lint off", file=sys.stderr)
+        return 2
+    if p_lower in TOGGLE_STATUS:
+        state = "AÇIK" if STATE_FILE.exists() else "kapalı (varsayılan)"
+        print(f"ℹ️  promptlint durumu: {state}", file=sys.stderr)
         return 2
 
-    # If state file says disabled → silent pass
-    if STATE_FILE.exists():
+    # DEFAULT-OFF: if state file does not exist, do nothing.
+    # User must explicitly enable with `:lint on`.
+    if not STATE_FILE.exists():
         return 0
 
     # Continuation skip

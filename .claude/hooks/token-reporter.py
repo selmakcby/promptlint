@@ -20,7 +20,10 @@ PRICING = {
     "haiku":  {"input":  0.80, "output":  4.00, "cache_write":  1.00, "cache_read": 0.08},
 }
 
-STATE_FILE = Path.home() / ".claude" / "promptlint.disabled"
+# Token reporter has its OWN state file, independent of the prompt filter.
+# This way you can see token costs even with prompt filter off.
+# Default: ON (token visibility is harmless and useful).
+TOKEN_OFF_FILE = Path.home() / ".claude" / "promptlint.tokens.disabled"
 
 
 def fmt(n: int) -> str:
@@ -51,8 +54,8 @@ def calc_cost(usage: dict, family: str) -> float:
 
 
 def main() -> int:
-    # Silenced if disabled
-    if STATE_FILE.exists():
+    # Silenced only if user explicitly disabled token reporter
+    if TOKEN_OFF_FILE.exists():
         return 0
 
     raw = sys.stdin.read()
