@@ -38,10 +38,23 @@ CONTINUATIONS = {
     "go", "no", "n", "hayır", "hayir", "dur", "stop", "iptal", "cancel",
 }
 
-# Toggle commands — ALWAYS work, regardless of current state
-TOGGLE_OFF    = {":lint off", ":lint kapat", "/lint off", "/promptlint off"}
-TOGGLE_ON     = {":lint on", ":lint ac", ":lint aç", "/lint on", "/promptlint on"}
-TOGGLE_STATUS = {":lint status", ":lint durum", "/lint status"}
+# Toggle commands — ALWAYS work, regardless of current state.
+# Accepts with or without colon prefix, and English/Turkish forms.
+TOGGLE_OFF = {
+    "lint off", ":lint off", "/lint off",
+    "lint kapat", ":lint kapat", "/lint kapat",
+    "promptlint off", ":promptlint off", "/promptlint off",
+}
+TOGGLE_ON = {
+    "lint on", ":lint on", "/lint on",
+    "lint ac", "lint aç", ":lint ac", ":lint aç", "/lint on", "/lint aç",
+    "promptlint on", ":promptlint on", "/promptlint on",
+}
+TOGGLE_STATUS = {
+    "lint status", ":lint status", "/lint status",
+    "lint durum", ":lint durum", "/lint durum",
+    "promptlint status", "/promptlint status",
+}
 
 # ─── rules ───────────────────────────────────────────────────────────────────
 VAGUE_VERBS = [
